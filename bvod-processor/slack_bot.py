@@ -36,8 +36,28 @@ def handle_mention(event, client):
 
 
 @app.event("message")
-def handle_message(event):
-    pass
+def handle_message(event, client):
+    # Only handle DMs
+    if event.get("channel_type") != "im":
+        return
+    # Ignore bot messages and subtypes like file_share echoes
+    if event.get("bot_id") or event.get("subtype"):
+        return
+
+    files = event.get("files", [])
+    channel = event["channel"]
+    thread_ts = event["ts"]
+
+    if not files:
+        client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text="Send me a video file and I'll process it for BVOD."
+        )
+        return
+
+    for file_info in files:
+        _handle_file(client, file_info, channel, thread_ts)
 
 
 def _handle_file(client, file_info, channel, thread_ts):
