@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import tempfile
 import shutil
 from pathlib import Path
@@ -18,30 +17,27 @@ load_dotenv()
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
 
 
-def get_watched_channel():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(script_dir, "config.json")) as f:
-        return json.load(f).get("slack_channel_id")
-
-
-@app.event("message")
-def handle_message(event, client):
-    if event.get("subtype") != "file_share":
-        return
-
-    watched = get_watched_channel()
-    if watched and event.get("channel") != watched:
-        return
-
+@app.event("app_mention")
+def handle_mention(event, client):
     files = event.get("files", [])
-    if not files:
-        return
-
     channel = event["channel"]
-    thread_ts = event["ts"]
+    thread_ts = event.get("thread_ts") or event["ts"]
+
+    if not files:
+        client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text="Attach a video file to your message and I'll process it for BVOD."
+        )
+        return
 
     for file_info in files:
         _handle_file(client, file_info, channel, thread_ts)
+
+
+@app.event("message")
+def handle_message(event):
+    pass
 
 
 def _handle_file(client, file_info, channel, thread_ts):
