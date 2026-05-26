@@ -61,22 +61,48 @@ def handle_message(event, client):
         _handle_file(client, file_info, channel, thread_ts)
 
 
+def _friendly_error(filename, error):
+    e = error.lower()
+    if "not a supported video format" in e:
+        supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
+        return f"❌ *{filename}* — unsupported format. Please send one of: {supported}"
+    if "not a valid length" in e or "not a valid" in e:
+        return f"❌ *{filename}* — wrong duration.\n{error}"
+    if "no video stream" in e:
+        return f"❌ *{filename}* — no video stream found. Is this a valid video file?"
+    if any(x in e for x in ["cannot allocate memory", "out of memory", "enomem", "killed"]):
+        return f"❌ *{filename}* — ran out of memory. Try a lower resolution version."
+    if "file not found" in e:
+        return f"❌ *{filename}* — file could not be found or downloaded."
+    return f"❌ *{filename}* — processing failed. Try a different file or lower resolution."
+
+
 def _handle_file(client, file_info, channel, thread_ts):
     filename = file_info.get("name", "video")
     ext = Path(filename).suffix.lower()
 
     if ext not in SUPPORTED_EXTENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
         client.chat_postMessage(
             channel=channel,
             thread_ts=thread_ts,
-            text=f"Unsupported file type `{ext}`. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+            text=f"❌ *{filename}* — unsupported format `{ext}`.\nSupported formats: {supported}"
         )
         return
+
+    # Warn if file is very large (>500 MB)
+    file_size = file_info.get("size", 0)
+    if file_size > 500 * 1024 * 1024:
+        client.chat_postMessage(
+            channel=channel,
+            thread_ts=thread_ts,
+            text=f"⚠️ *{filename}* is {file_size // (1024*1024)} MB — this may take a while or fail on large files."
+        )
 
     client.chat_postMessage(
         channel=channel,
         thread_ts=thread_ts,
-        text=f"Processing *{filename}*..."
+        text=f"⏳ Processing *{filename}*..."
     )
 
     download_url = file_info.get("url_private_download") or file_info.get("url_private")
@@ -97,7 +123,7 @@ def _handle_file(client, file_info, channel, thread_ts):
             client.chat_postMessage(
                 channel=channel,
                 thread_ts=thread_ts,
-                text=f"Could not process *{filename}*:\n```{error}```"
+                text=_friendly_error(filename, error)
             )
         else:
             client.files_upload_v2(
@@ -105,14 +131,14 @@ def _handle_file(client, file_info, channel, thread_ts):
                 thread_ts=thread_ts,
                 file=output_path,
                 filename=Path(output_path).name,
-                initial_comment=f"Done! *{Path(output_path).name}* is ready for review."
+                initial_comment=f"✅ Done! *{Path(output_path).name}* is ready for review."
             )
 
     except Exception as e:
         client.chat_postMessage(
             channel=channel,
             thread_ts=thread_ts,
-            text=f"Unexpected error processing *{filename}*:\n```{e}```"
+            text=_friendly_error(filename, str(e))
         )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
