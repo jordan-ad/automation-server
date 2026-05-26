@@ -17,6 +17,8 @@ CONTENT_LONG_FRAMES  = 684   # 720 total - 36 title card
 CONTENT_SHORT_SECONDS = CONTENT_SHORT_FRAMES / OUTPUT_FPS  # 13.5
 CONTENT_LONG_SECONDS  = CONTENT_LONG_FRAMES  / OUTPUT_FPS  # 28.5
 
+AUDIO_FADE_DURATION = 2.0    # seconds of audio fade-out before title card
+
 
 def load_config():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -148,7 +150,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
 
 def concatenate(input_path, titlecard_clip, output_path, has_audio, video_bitrate, audio_bitrate, trim_to=None, content_duration=None):
     vbr_flags = ["-b:v", str(video_bitrate)] if video_bitrate else ["-crf", "18"]
-    fade_start = (trim_to if trim_to is not None else content_duration) - 2
+    fade_start = max(0.0, (trim_to if trim_to is not None else content_duration) - AUDIO_FADE_DURATION)
 
     if trim_to is not None:
         v_src = f"[0:v]trim=duration={trim_to},setpts=PTS-STARTPTS,fps={OUTPUT_FPS}[v0]"
