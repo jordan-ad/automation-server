@@ -123,7 +123,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
             "-f", "lavfi", "-i", f"anullsrc=r={sample_rate}:cl={'stereo' if channels == 2 else 'mono'}",
             "-vf", scale_filter,
             "-r", str(OUTPUT_FPS),
-            "-c:v", "libx264", "-preset", "veryfast",
+            "-c:v", "libx264",
             *vbr_flags,
             "-c:a", "aac",
             *abr_flags,
@@ -138,7 +138,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
             "-loop", "1", "-i", png_path,
             "-vf", scale_filter,
             "-r", str(OUTPUT_FPS),
-            "-c:v", "libx264", "-preset", "veryfast",
+            "-c:v", "libx264",
             *vbr_flags,
             "-frames:v", str(TITLE_CARD_FRAMES),
             "-pix_fmt", pix_fmt,
@@ -146,17 +146,16 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
         ])
 
 
-def concatenate(input_path, titlecard_clip, output_path, has_audio, video_bitrate, audio_bitrate, trim_to=None, content_duration=None, scale_w=None, scale_h=None):
-    vbr_flags = ["-b:v", str(video_bitrate), "-preset", "veryfast"] if video_bitrate else ["-crf", "18", "-preset", "veryfast"]
+def concatenate(input_path, titlecard_clip, output_path, has_audio, video_bitrate, audio_bitrate, trim_to=None, content_duration=None):
+    vbr_flags = ["-b:v", str(video_bitrate)] if video_bitrate else ["-crf", "18"]
     fade_start = (trim_to if trim_to is not None else content_duration) - 2
-    scale_filter = f"scale={scale_w}:{scale_h}," if (scale_w and scale_h) else ""
 
     if trim_to is not None:
-        v_src = f"[0:v]trim=duration={trim_to},setpts=PTS-STARTPTS,{scale_filter}fps={OUTPUT_FPS}[v0]"
+        v_src = f"[0:v]trim=duration={trim_to},setpts=PTS-STARTPTS,fps={OUTPUT_FPS}[v0]"
         a_src = f"[0:a]atrim=duration={trim_to},asetpts=PTS-STARTPTS,afade=t=out:st={fade_start}:d=2[a0]"
         v_label, a_label = "[v0]", "[a0]"
     else:
-        v_src = f"[0:v]{scale_filter}fps={OUTPUT_FPS}[v0]"
+        v_src = f"[0:v]fps={OUTPUT_FPS}[v0]"
         a_src = f"[0:a]afade=t=out:st={fade_start}:d=2[a0]"
         v_label, a_label = "[v0]", "[a0]"
 
@@ -234,13 +233,6 @@ def process_file(input_path, titlecard_path, suffix):
     print(f"  Bitrate    : {round(video_bitrate / 1_000_000, 1)} Mbps" if video_bitrate else "  Bitrate    : unknown")
     print(f"  Audio      : {'yes' if sample_rate else 'no'}")
 
-    # Cap output at 1080p
-    MAX_HEIGHT = 1080
-    out_h = min(h, MAX_HEIGHT)
-    out_w = w if out_h == h else (int(w * out_h / h) & ~1)
-    if out_h != h:
-        print(f"  Scaling    : {w}x{h} → {out_w}x{out_h} (capped at 1080p)")
-
     trim_to, target_total, error_msg = get_processing_params(duration)
     if error_msg:
         return None, error_msg
@@ -258,12 +250,11 @@ def process_file(input_path, titlecard_path, suffix):
         titlecard_clip = os.path.join(tmp_dir, "titlecard_clip.mp4")
 
         print("  Building title card clip...")
-        build_titlecard_clip(titlecard_path, out_w, out_h, pix_fmt, fps, sample_rate, channels, audio_bitrate, video_bitrate, titlecard_clip)
+        build_titlecard_clip(titlecard_path, w, h, pix_fmt, fps, sample_rate, channels, audio_bitrate, video_bitrate, titlecard_clip)
 
         print("  Concatenating video...")
         content_duration = trim_to if trim_to is not None else duration
-        scale_args = (out_w, out_h) if out_h != h else (None, None)
-        concatenate(input_path, titlecard_clip, output_path, has_audio=(sample_rate is not None), video_bitrate=video_bitrate, audio_bitrate=audio_bitrate, trim_to=trim_to, content_duration=content_duration, scale_w=scale_args[0], scale_h=scale_args[1])
+        concatenate(input_path, titlecard_clip, output_path, has_audio=(sample_rate is not None), video_bitrate=video_bitrate, audio_bitrate=audio_bitrate, trim_to=trim_to, content_duration=content_duration)
 
     except RuntimeError as e:
         return None, str(e)
