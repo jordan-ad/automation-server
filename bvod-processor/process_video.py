@@ -123,7 +123,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
             "-f", "lavfi", "-i", f"anullsrc=r={sample_rate}:cl={'stereo' if channels == 2 else 'mono'}",
             "-vf", scale_filter,
             "-r", str(OUTPUT_FPS),
-            "-c:v", "libx264",
+            "-c:v", "libx264", "-preset", "veryfast",
             *vbr_flags,
             "-c:a", "aac",
             *abr_flags,
@@ -138,7 +138,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
             "-loop", "1", "-i", png_path,
             "-vf", scale_filter,
             "-r", str(OUTPUT_FPS),
-            "-c:v", "libx264",
+            "-c:v", "libx264", "-preset", "veryfast",
             *vbr_flags,
             "-frames:v", str(TITLE_CARD_FRAMES),
             "-pix_fmt", pix_fmt,
@@ -147,7 +147,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
 
 
 def concatenate(input_path, titlecard_clip, output_path, has_audio, video_bitrate, audio_bitrate, trim_to=None, content_duration=None):
-    vbr_flags = ["-b:v", str(video_bitrate)] if video_bitrate else ["-crf", "18"]
+    vbr_flags = ["-b:v", str(video_bitrate), "-preset", "veryfast"] if video_bitrate else ["-crf", "18", "-preset", "veryfast"]
     fade_start = (trim_to if trim_to is not None else content_duration) - 2
 
     if trim_to is not None:
