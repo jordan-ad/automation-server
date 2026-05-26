@@ -28,9 +28,10 @@ except ImportError:
     HAS_DND = False
 
 # Import core processing module from same directory
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+if not getattr(sys, "frozen", False):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import process_video as pv
-from process_video import load_config, SUPPORTED_EXTENSIONS
+from process_video import load_config, get_app_dir, SUPPORTED_EXTENSIONS
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ class BVODApp:
         try:
             titlecard_path, output_suffix = load_config()
         except Exception:
-            titlecard_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "titlecard.png")
+            titlecard_path = os.path.join(get_app_dir(), "titlecard.png")
             output_suffix = "_final"
 
         # State

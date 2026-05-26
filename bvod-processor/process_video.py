@@ -8,6 +8,32 @@ import shutil
 
 SUPPORTED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".mxf", ".wmv"}
 
+
+def get_app_dir() -> str:
+    """Return the directory where config/assets live.
+    When running as a PyInstaller bundle this is next to the executable;
+    when running as a plain script it's the script's own directory.
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _find_tool(name: str) -> str:
+    """Locate ffmpeg/ffprobe.
+    Checks the PyInstaller bundle (_MEIPASS) first, then falls back to PATH.
+    """
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        exe = f"{name}.exe" if sys.platform == "win32" else name
+        bundled = os.path.join(sys._MEIPASS, exe)
+        if os.path.isfile(bundled):
+            return bundled
+    return name
+
+
+FFMPEG  = _find_tool("ffmpeg")
+FFPROBE = _find_tool("ffprobe")
+
 OUTPUT_FPS = 24
 TITLE_CARD_FRAMES = 36
 TITLE_CARD_DURATION = TITLE_CARD_FRAMES / OUTPUT_FPS  # 1.5s
@@ -21,13 +47,13 @@ AUDIO_FADE_DURATION = 2.0    # seconds of audio fade-out before title card
 
 
 def load_config():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(script_dir, "config.json")
+    app_dir = get_app_dir()
+    config_path = os.path.join(app_dir, "config.json")
     with open(config_path) as f:
         config = json.load(f)
     titlecard = config.get("titlecard_path", "titlecard.png")
     if not os.path.isabs(titlecard):
-        titlecard = os.path.join(script_dir, titlecard)
+        titlecard = os.path.join(app_dir, titlecard)
     return titlecard, config.get("output_suffix", "_final")
 
 
@@ -40,7 +66,7 @@ def run(cmd, **kwargs):
 
 def probe_video(path):
     out = run([
-        "ffprobe", "-v", "error",
+        FFPROBE, "-v", "error",
         "-show_streams", "-show_format",
         "-of", "json",
         path
@@ -75,7 +101,7 @@ def probe_video(path):
 
 def probe_duration(path):
     out = run([
-        "ffprobe", "-v", "error",
+        FFPROBE, "-v", "error",
         "-show_entries", "format=duration",
         "-of", "default=noprint_wrappers=1:nokey=1",
         path
@@ -120,7 +146,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
     if sample_rate is not None:
         abr_flags = ["-b:a", str(audio_bitrate)] if audio_bitrate else ["-b:a", "192000"]
         run([
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-loop", "1", "-i", png_path,
             "-f", "lavfi", "-i", f"anullsrc=r={sample_rate}:cl={'stereo' if channels == 2 else 'mono'}",
             "-vf", scale_filter,
@@ -136,7 +162,7 @@ def build_titlecard_clip(png_path, w, h, pix_fmt, fps, sample_rate, channels, au
         ])
     else:
         run([
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-loop", "1", "-i", png_path,
             "-vf", scale_filter,
             "-r", str(OUTPUT_FPS),
@@ -169,7 +195,7 @@ def concatenate(input_path, titlecard_clip, output_path, has_audio, video_bitrat
         parts.append(a_src)
         parts.append(f"{v_label}{a_label}[1:v][1:a]concat=n=2:v=1:a=1[v][a]")
         run([
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-i", input_path,
             "-i", titlecard_clip,
             "-filter_complex", ";".join(parts),
@@ -187,7 +213,7 @@ def concatenate(input_path, titlecard_clip, output_path, has_audio, video_bitrat
             parts.append(v_src)
         parts.append(f"{v_label}[1:v]concat=n=2:v=1[v]")
         run([
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-i", input_path,
             "-i", titlecard_clip,
             "-filter_complex", ";".join(parts),

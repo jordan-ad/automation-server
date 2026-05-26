@@ -15,3 +15,9 @@ venv/
 
 # Claude Code
 .claude/
+
+# PyInstaller build output
+bvod-processor/bin/
+bvod-processor/dist/
+bvod-processor/build/
+bvod-processor/*.spec
