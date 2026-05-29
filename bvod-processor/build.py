@@ -95,7 +95,7 @@ def main():
         src = SCRIPT_DIR / asset
         if src.exists():
             shutil.copy2(src, dist_assets / asset)
-            print(f"  Copied {asset} → dist/")
+            print(f"  Copied {asset} -> dist/")
 
     # ── 4. Done ───────────────────────────────────────────────────────
     if sys.platform == "darwin":
